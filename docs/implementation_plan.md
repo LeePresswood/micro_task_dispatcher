@@ -59,3 +59,29 @@ Develop the Micro-Task Dispatcher (MTD), an autonomous AI Orchestrator, and prov
   - Instantiates the MTD Agent.
   - Mocks the LLM response (or uses real one if key provided) to avoid non-deterministic failures during initial dev.
   - Verifies the flow: Request -> Plan -> 3 Tool Calls -> Synthesis.
+
+# Phase 2: Intelligent Orchestration (LLM)
+
+## Goal Description
+Replace the rule-based planner with a Large Language Model (LLM). The Agent will use the LLM to dynamically interpret user requests and generate structured tool calls.
+
+## Proposed Changes
+
+### Orchestrator Core (`packages/orchestrator_core`)
+#### [NEW] `llm_provider.py`
+- **Responsibility**: Handle API interactions with the chosen LLM provider (Gemini/Claude/OpenAI).
+- **Key Function**: `generate_plan(prompt: str, tools_schema: List[Dict]) -> List[ToolCall]`
+
+#### [MODIFY] `agent.py`
+- **Update**: Replace the `if/else` logic in `plan()` with a call to `llm_provider.generate_plan()`.
+- **Schema Generation**: Add a method to convert `social_tools` functions into a JSON schema that the LLM can understand.
+
+### Configuration
+- **.env**: Will require a valid API key (e.g., `GEMINI_API_KEY`).
+
+## Verification Plan
+- **Complex Requests**: Verify that the Agent can handle requests like:
+    - "Post to Bluesky only."
+    - "Post to X and Threads."
+    - "Tell everyone on all platforms that we are live."
+

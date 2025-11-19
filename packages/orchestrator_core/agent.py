@@ -15,7 +15,8 @@ class Agent:
 
     def __init__(self):
         """Initialize the agent."""
-        pass
+        from packages.orchestrator_core.llm_provider import LLMProvider
+        self.llm = LLMProvider()
 
     def plan(self, user_request: str) -> List[ToolCall]:
         """
@@ -29,24 +30,30 @@ class Agent:
         """
         print(f"Planning for request: {user_request}")
         
-        # Simple Rule-Based Planner for Phase 1
-        plan = []
-        lower_request = user_request.lower()
+        # Define the available tools schema (Hardcoded for now, could be dynamic)
+        tools_schema = [
+            {
+                "tool_name": "post_to_threads",
+                "description": "Post a message to Threads.",
+                "arguments": {"message": "The text content to post."}
+            },
+            {
+                "tool_name": "post_to_bluesky",
+                "description": "Post a message to Bluesky.",
+                "arguments": {"message": "The text content to post."}
+            },
+            {
+                "tool_name": "post_to_x",
+                "description": "Post a message to X (Twitter).",
+                "arguments": {"message": "The text content to post."}
+            }
+        ]
         
-        if "post" in lower_request and ("all social platforms" in lower_request or "social" in lower_request):
-            # Extract the message (naive extraction for POC)
-            # Assuming message is quoted or follows "message:"
-            import re
-            match = re.search(r"['\"](.*?)['\"]", user_request)
-            if match:
-                message = match.group(1)
-            else:
-                # Fallback if no quotes, just take the whole string or a dummy
-                message = "Hello World from MTD!"
-            
-            plan.append(ToolCall(tool_name="post_to_threads", arguments={"message": message}))
-            plan.append(ToolCall(tool_name="post_to_bluesky", arguments={"message": message}))
-            plan.append(ToolCall(tool_name="post_to_x", arguments={"message": message}))
+        # Use LLM to generate plan
+        plan = self.llm.generate_plan(user_request, tools_schema)
+        
+        if not plan:
+            print("LLM failed to generate a plan (or no API key). Falling back to empty plan.")
             
         return plan
 
