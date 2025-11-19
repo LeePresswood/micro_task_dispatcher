@@ -1,6 +1,6 @@
 # Micro-Task Dispatcher (MTD) 🤖✨
 
-> **Vibe Coded by Gemini 1.5 Pro & Antigravity** 🚀
+> **Vibe Coded by Gemini 3 Pro & Antigravity** 🚀
 
 Welcome to the **Micro-Task Dispatcher**, an autonomous AI Orchestrator designed to break down complex human requests into precise, parallel micro-tasks.
 
