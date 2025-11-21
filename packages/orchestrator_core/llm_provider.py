@@ -3,7 +3,7 @@ import json
 from typing import List, Dict, Any
 import google.generativeai as genai
 from dataclasses import asdict
-from packages.orchestrator_core.agent import ToolCall
+from packages.orchestrator_core.types import ToolCall
 from dotenv import load_dotenv
 
 class LLMProvider:

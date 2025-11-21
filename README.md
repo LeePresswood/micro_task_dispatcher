@@ -27,6 +27,31 @@ The initial Proof-of-Concept demonstrates a **Social Fan-Out** workflow.
 -   **Action**: The Agent identifies the intent and calls three separate mock tools in parallel.
 -   **Result**: A confirmed broadcast summary.
 
+## 🧠 Phase 3: Hierarchical Architecture (Demo)
+
+The MTD now supports a **Hierarchical Agent Architecture**. The Top-Level Orchestrator delegates domain-specific tasks to specialized Sub-Agents.
+
+**Example Output:**
+```text
+Request: "Announce 'Project X' on all social platforms."
+
+Processing...
+Planning for request: Announce 'Project X' on all social platforms.
+Executing: delegate_to_SocialManager with {'request': "Announce 'Project X' on all social platforms."}
+   [SocialManager] Received request: 'Announce 'Project X' on all social platforms.'
+   [SocialManager] Executing: post_to_x
+[X] Posting: Announcing Project X
+   [SocialManager] Executing: post_to_bluesky
+[Bluesky] Posting: Announcing Project X
+   [SocialManager] Executing: post_to_threads
+[Threads] Posting: Announcing Project X
+[SocialManager] SocialManager executed 3 tasks: post_to_x: Success, post_to_bluesky: Success, post_to_threads: Success
+
+Result:
+Task Execution Summary:
+- delegate_to_SocialManager: Success: SocialManager executed 3 tasks...
+```
+
 ## 📂 Documentation
 
 We believe in building in public. Check out our development artifacts in the `docs/` folder:

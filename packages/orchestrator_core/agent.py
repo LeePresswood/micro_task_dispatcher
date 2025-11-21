@@ -1,55 +1,44 @@
-from typing import List, Dict, Any
-from dataclasses import dataclass
-
-@dataclass
-class ToolCall:
-    """Represents a planned call to a specific tool."""
-    tool_name: str
-    arguments: Dict[str, Any]
+from typing import List, Dict, Any, Optional
+from packages.orchestrator_core.llm_provider import LLMProvider
+from packages.orchestrator_core.types import ToolCall
+from packages.orchestrator_core.sub_agent import SubAgent
 
 class Agent:
     """
-    The Micro-Task Dispatcher (MTD) Agent.
-    Responsible for planning, executing, and synthesizing tasks.
+    The Micro-Task Dispatcher Agent (Orchestrator).
     """
-
     def __init__(self):
-        """Initialize the agent."""
-        from packages.orchestrator_core.llm_provider import LLMProvider
         self.llm = LLMProvider()
+        self.sub_agents: Dict[str, SubAgent] = {}
+        
+    def register_sub_agent(self, sub_agent: SubAgent):
+        """Registers a sub-agent with the orchestrator."""
+        self.sub_agents[sub_agent.name] = sub_agent
 
     def plan(self, user_request: str) -> List[ToolCall]:
         """
-        Decompose the user request into a list of tool calls.
-        
-        Args:
-            user_request: The natural language request from the user.
-            
-        Returns:
-            A list of ToolCall objects representing the execution plan.
+        Decomposes the user request into a list of tool calls (or sub-agent delegations).
         """
+        # Dynamic schema generation from registered sub-agents
+        tools_schema = []
+        for name, agent in self.sub_agents.items():
+            tools_schema.append({
+                "name": f"delegate_to_{name}",
+                "description": f"Delegate a task to the {name}. {agent.description}",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "request": {"type": "string", "description": "The natural language request to delegate."}
+                    },
+                    "required": ["request"]
+                }
+            })
+
+        # If no sub-agents, fall back to empty (or add default tools if we had them)
+        if not tools_schema:
+             print("Warning: No sub-agents registered.")
+
         print(f"Planning for request: {user_request}")
-        
-        # Define the available tools schema (Hardcoded for now, could be dynamic)
-        tools_schema = [
-            {
-                "tool_name": "post_to_threads",
-                "description": "Post a message to Threads.",
-                "arguments": {"message": "The text content to post."}
-            },
-            {
-                "tool_name": "post_to_bluesky",
-                "description": "Post a message to Bluesky.",
-                "arguments": {"message": "The text content to post."}
-            },
-            {
-                "tool_name": "post_to_x",
-                "description": "Post a message to X (Twitter).",
-                "arguments": {"message": "The text content to post."}
-            }
-        ]
-        
-        # Use LLM to generate plan
         plan = self.llm.generate_plan(user_request, tools_schema)
         
         if not plan:
@@ -59,74 +48,53 @@ class Agent:
 
     def execute(self, plan: List[ToolCall]) -> Dict[str, Any]:
         """
-        Execute the planned tool calls.
-        
-        Args:
-            plan: The list of tool calls to execute.
-            
-        Returns:
-            A dictionary mapping tool names to their results.
+        Executes the plan by calling registered sub-agents.
         """
         results = {}
-        
-        # Dynamic import to avoid circular deps or early import issues
-        # In a real app, we'd have a ToolRegistry
-        from packages.micro_tools.social import social_tools
-        
-        tool_map = {
-            "post_to_threads": social_tools.post_to_threads,
-            "post_to_bluesky": social_tools.post_to_bluesky,
-            "post_to_x": social_tools.post_to_x
-        }
-
-        for tool_call in plan:
-            print(f"Executing: {tool_call.tool_name} with {tool_call.arguments}")
+        for call in plan:
+            print(f"Executing: {call.tool_name} with {call.arguments}")
             
-            if tool_call.tool_name in tool_map:
-                func = tool_map[tool_call.tool_name]
-                try:
-                    # Unpack arguments
-                    result = func(**tool_call.arguments)
-                    results[tool_call.tool_name] = result
-                except Exception as e:
-                    results[tool_call.tool_name] = {"error": str(e)}
+            # Check for delegation
+            if call.tool_name.startswith("delegate_to_"):
+                agent_name = call.tool_name.replace("delegate_to_", "")
+                sub_agent = self.sub_agents.get(agent_name)
+                
+                if sub_agent:
+                    try:
+                        # Extract the 'request' argument
+                        sub_request = call.arguments.get("request")
+                        if sub_request:
+                            result = sub_agent.run(sub_request)
+                            results[call.tool_name] = f"Success: {result}"
+                            print(f"[{agent_name}] {result}")
+                        else:
+                            results[call.tool_name] = "Failed: Missing 'request' argument"
+                    except Exception as e:
+                        results[call.tool_name] = f"Failed: {e}"
+                else:
+                    results[call.tool_name] = f"Failed: Unknown sub-agent {agent_name}"
             else:
-                results[tool_call.tool_name] = {"error": "Tool not found"}
+                results[call.tool_name] = "Failed: Unknown tool (only delegations supported in Phase 3)"
                 
         return results
 
     def synthesize(self, results: Dict[str, Any]) -> str:
         """
-        Synthesize the results into a final response.
-        
-        Args:
-            results: The dictionary of tool execution results.
-            
-        Returns:
-            A natural language summary of the operation.
+        Synthesizes the results into a final response.
         """
-        lines = ["Task Execution Summary:"]
-        success_count = 0
+        summary = ["Task Execution Summary:"]
         for tool, result in results.items():
-            # Handle SocialPostResult object or dict error
-            if hasattr(result, 'success') and result.success:
-                lines.append(f"- {tool}: Success (ID: {result.message_id})")
-                success_count += 1
-            else:
-                lines.append(f"- {tool}: Failed ({result})")
-        
-        if success_count == len(results) and len(results) > 0:
-            lines.append("\nAll posts were successfully published!")
-        else:
-            lines.append("\nSome posts failed.")
+            summary.append(f"- {tool}: {result}")
             
-        return "\n".join(lines)
+        return "\n".join(summary)
 
     def run(self, user_request: str) -> str:
         """
-        Run the full agent loop: Plan -> Execute -> Synthesize.
+        Main entry point: Plan -> Execute -> Synthesize.
         """
+        print("\nProcessing...")
         plan = self.plan(user_request)
         results = self.execute(plan)
         response = self.synthesize(results)
+        print(f"\nResult:\n{response}")
         return response
